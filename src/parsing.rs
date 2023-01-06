@@ -70,7 +70,6 @@ pub async fn parse_all() -> Vec<ScpObject> {
     let mut objects: Vec<ScpObject> = Vec::new();
 
     objects.append(&mut parse_series(URL_SERIES).await);
-
     for i in 2..MAX_SERIES {
         objects.append(&mut parse_series(format!("{}-{}", URL_SERIES, i).as_str()).await);
     }
@@ -108,46 +107,90 @@ pub async fn parse_series(url: &str) -> Vec<ScpObject> {
             .collect();
 
         childrens.iter().for_each(|c| {
-            let name = c
-                .next_sibling()
-                .unwrap()
-                .value()
-                .as_text()
-                .unwrap()
-                .trim()
-                .strip_prefix("—")
-                .unwrap()
-                .trim();
-
             let name_d = c.first_child().unwrap().value().as_text().unwrap();
             let name_d: Vec<_> = name_d.split("-").collect();
 
             let id = name_d.get(1).unwrap().trim();
 
-            let this = c
-                .prev_sibling()
-                .unwrap()
-                .prev_sibling()
-                .unwrap()
-                .value()
-                .as_element()
-                .unwrap()
-                .attr("alt");
+            if c.next_sibling().unwrap().value().is_text()
+                || c.next_sibling().unwrap().value().is_element()
+                    && c.next_sibling()
+                        .unwrap()
+                        .value()
+                        .as_element()
+                        .unwrap()
+                        .name()
+                        == "span"
+            {
+                let span = c.next_sibling().unwrap().next_sibling();
 
-            let class: ClassificationScp = match this {
-                Some(val) => match val {
-                    "na.png" => ClassificationScp::Neutralized,
-                    "safe.png" => ClassificationScp::Safe,
-                    "euclid.png" => ClassificationScp::Euclid,
-                    "keter.png" => ClassificationScp::Keter,
-                    "thaumiel.png" => ClassificationScp::Thaumiel,
-                    "nonstandard.png" => ClassificationScp::NonStandard,
-                    _ => ClassificationScp::None,
-                },
-                None => ClassificationScp::None,
-            };
+                let mut name: Option<&str> = None;
 
-            objects.push(ScpObject::new(class, name.to_string(), id.to_string()));
+                if !span.is_none() && span.unwrap().value().is_element() {
+                    let elm = span.unwrap().value().as_element().unwrap();
+                    if elm.name() == "span" {
+                        let text_from_span = span.unwrap().children().next();
+                        if !text_from_span.is_none() && text_from_span.unwrap().value().is_text() {
+                            name = Some(text_from_span.unwrap().value().as_text().unwrap().trim());
+                        }
+                    }
+                }
+
+                if name == None {
+                    name = Some(
+                        c.next_sibling()
+                            .unwrap()
+                            .value()
+                            .as_text()
+                            .unwrap()
+                            .trim()
+                            .strip_prefix("—")
+                            .unwrap_or("NOT FOUND")
+                            .trim(),
+                    );
+                }
+
+                let this = c
+                    .prev_sibling()
+                    .unwrap()
+                    .prev_sibling()
+                    .unwrap()
+                    .value()
+                    .as_element()
+                    .unwrap()
+                    .attr("alt");
+
+                let class: ClassificationScp = match this {
+                    Some(val) => match val {
+                        "na.png" => ClassificationScp::Neutralized,
+                        "safe.png" => ClassificationScp::Safe,
+                        "euclid.png" => ClassificationScp::Euclid,
+                        "keter.png" => ClassificationScp::Keter,
+                        "thaumiel.png" => ClassificationScp::Thaumiel,
+                        "nonstandard.png" => ClassificationScp::NonStandard,
+                        _ => ClassificationScp::None,
+                    },
+                    None => ClassificationScp::None,
+                };
+
+                objects.push(ScpObject::new(
+                    class,
+                    name.unwrap().to_string(),
+                    id.to_string(),
+                ));
+            }
+
+            // match id {
+            //     "5404" => {}
+            //     "5470" => {}
+            //     "4205" => {}
+            //     "4991" => {}
+            //     "3454" => {}
+            //     "2071" => {}
+            //     _ => {
+
+            //     }
+            // }
         });
     });
 
