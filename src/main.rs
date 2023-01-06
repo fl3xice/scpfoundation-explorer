@@ -7,7 +7,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use parsing::{parse_series, ScpObject};
+use parsing::{parse_all, parse_series, ScpObject};
 use stateful::StatefulList;
 use std::{
     env,
@@ -75,7 +75,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let mut lock = objects_loader.lock().await;
 
         if lock.objects.is_none() {
-            lock.objects = Some(parse_series().await);
+            lock.objects = Some(parse_all().await);
         }
 
         lock.objects_items = StatefulList::with_items(lock.objects.clone().unwrap());

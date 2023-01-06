@@ -2,8 +2,11 @@ use core::fmt;
 
 use scraper::Selector;
 
-#[allow(unused)]
-const MAX_SERIES: u8 = 8;
+/**
+ **One value must be greater than**
+ */
+const MAX_SERIES: u8 = 9;
+
 const URL_SERIES: &str = "https://scpfoundation.net/scp-series";
 // const URL_SERIES: &str = "/home/flexice/Downloads/objects.html";
 
@@ -63,15 +66,22 @@ impl ScpObject {
     }
 }
 
-pub async fn parse_series() -> Vec<ScpObject> {
+pub async fn parse_all() -> Vec<ScpObject> {
     let mut objects: Vec<ScpObject> = Vec::new();
 
-    let response = reqwest::get(URL_SERIES)
-        .await
-        .unwrap()
-        .text()
-        .await
-        .unwrap();
+    objects.append(&mut parse_series(URL_SERIES).await);
+
+    for i in 2..MAX_SERIES {
+        objects.append(&mut parse_series(format!("{}-{}", URL_SERIES, i).as_str()).await);
+    }
+
+    objects
+}
+
+pub async fn parse_series(url: &str) -> Vec<ScpObject> {
+    let mut objects: Vec<ScpObject> = Vec::new();
+
+    let response = reqwest::get(url).await.unwrap().text().await.unwrap();
 
     // let response = fs::read_to_string(URL_SERIES).expect("Should have been able to read the file");
     let document = scraper::Html::parse_document(&response);
