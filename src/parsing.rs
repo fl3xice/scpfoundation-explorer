@@ -1,11 +1,8 @@
 use core::fmt;
-use std::{
-    fmt::format,
-    fs::{self},
-};
 
-use scraper::{ElementRef, Selector};
+use scraper::Selector;
 
+#[allow(unused)]
 const MAX_SERIES: u8 = 8;
 const URL_SERIES: &str = "https://scpfoundation.net/scp-series";
 // const URL_SERIES: &str = "/home/flexice/Downloads/objects.html";

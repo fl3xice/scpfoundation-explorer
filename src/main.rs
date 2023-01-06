@@ -13,7 +13,7 @@ use std::{
     env,
     error::Error,
     io,
-    sync::{Arc, MutexGuard},
+    sync::Arc,
     time::{Duration, Instant},
 };
 use tokio::sync::{mpsc::channel, Mutex};
