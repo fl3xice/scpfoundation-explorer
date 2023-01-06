@@ -1,0 +1,12 @@
+[package]
+name = "scpfoundation-explorer"
+version = "0.1.0"
+edition = "2021"
+authors = ["flexice <litegame150@gmail.com>"]
+
+[dependencies]
+crossterm = "0.25.0"
+reqwest = { version = "0.11.13", features = ["blocking"]}
+scraper = "0.14.0"
+tokio = { version = "1.24.0", features = ["full"]}
+tui = "0.19.0"
