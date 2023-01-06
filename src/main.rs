@@ -7,7 +7,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use parsing::{parse_all, parse_series, ScpObject};
+use parsing::{parse_all, ScpObject};
 use stateful::StatefulList;
 use std::{
     env,
