@@ -1,5 +1,6 @@
 pub mod caching;
 pub mod parsing;
+pub mod stateful;
 
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
@@ -7,19 +8,21 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use parsing::{parse_series, ScpObject};
+use stateful::StatefulList;
 use std::{
     env,
     error::Error,
     io,
-    thread::{self, Thread},
+    sync::{Arc, MutexGuard},
     time::{Duration, Instant},
 };
+use tokio::sync::{mpsc::channel, Mutex};
 use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
-    widgets::{Block, Borders, Gauge, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
     Frame, Terminal,
 };
 
@@ -36,65 +39,17 @@ enum Mode {
 }
 
 #[derive(Clone)]
-struct StatefulList<T> {
-    state: ListState,
-    items: Vec<T>,
-}
-
-impl<T> StatefulList<T> {
-    fn with_items(items: Vec<T>) -> StatefulList<T> {
-        StatefulList {
-            state: ListState::default(),
-            items,
-        }
-    }
-
-    fn new() -> StatefulList<T> {
-        StatefulList {
-            state: ListState::default(),
-            items: Vec::new(),
-        }
-    }
-
-    fn next(&mut self) {
-        let i = match self.state.selected() {
-            Some(i) => {
-                if i >= self.items.len() - 1 {
-                    0
-                } else {
-                    i + 1
-                }
-            }
-            None => 0,
-        };
-        self.state.select(Some(i));
-    }
-
-    fn previous(&mut self) {
-        let i = match self.state.selected() {
-            Some(i) => {
-                if i == 0 {
-                    self.items.len() - 1
-                } else {
-                    i - 1
-                }
-            }
-            None => 0,
-        };
-        self.state.select(Some(i));
-    }
-
-    fn unselect(&mut self) {
-        self.state.select(None);
-    }
-}
-
-#[derive(Clone)]
 struct AppStates {
     window: WindowSelect,
     search: String,
     mode: Mode,
     is_load: bool,
+    objects: Option<Vec<ScpObject>>,
+    objects_items: StatefulList<ScpObject>,
+}
+
+#[derive(Clone)]
+struct ObjectsLoading {
     objects: Option<Vec<ScpObject>>,
     objects_items: StatefulList<ScpObject>,
 }
@@ -109,6 +64,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
         objects: None,
         objects_items: StatefulList::new(),
     };
+
+    let objects_loader = Arc::new(Mutex::new(ObjectsLoading {
+        objects: None,
+        objects_items: StatefulList::new(),
+    }));
+    let objects_loader2 = Arc::clone(&objects_loader);
+
+    tokio::spawn(async move {
+        let mut lock = objects_loader.lock().await;
+
+        if lock.objects.is_none() {
+            lock.objects = Some(parse_series().await);
+        }
+
+        lock.objects_items = StatefulList::with_items(lock.objects.clone().unwrap());
+    });
 
     // Collect all arguments
     let args: Vec<String> = env::args().collect();
@@ -127,7 +98,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // create app and run it
     let tick_rate = Duration::from_millis(50);
-    let res = run_app(&mut terminal, &mut app, tick_rate).await;
+    let res = run_app(&mut terminal, &mut app, tick_rate, objects_loader2).await;
 
     // restore terminal
     disable_raw_mode()?;
@@ -175,24 +146,41 @@ fn search(app: &mut AppStates) {
     app.objects_items = StatefulList::with_items(objects);
 }
 
-async fn load(app: &mut AppStates) {
-    if app.objects.is_none() {
-        app.objects = Some(parse_series().await);
-    }
-
-    app.is_load = false;
-    app.objects_items = StatefulList::with_items(app.objects.clone().unwrap());
-}
-
 async fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
     app: &mut AppStates,
     tick_rate: Duration,
+    objects: Arc<Mutex<ObjectsLoading>>,
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
+    let (tx, mut rx) = channel(100);
+
+    tokio::spawn(async move {
+        let lock = objects.lock().await;
+        loop {
+            if lock.objects.is_some() {
+                match tx.send(lock.clone()).await {
+                    Ok(_) => {}
+                    Err(_) => panic!("Fuck!!"),
+                }
+                break;
+            }
+        }
+    });
 
     loop {
         terminal.draw(|f| ui(f, app))?;
+
+        match rx.recv().await {
+            Some(c) => {
+                app.is_load = false;
+                app.objects = c.objects.clone();
+                app.objects_items = c.objects_items.clone();
+            }
+            None => {
+                rx.close();
+            }
+        }
 
         let timeout = tick_rate
             .checked_sub(last_tick.elapsed())
