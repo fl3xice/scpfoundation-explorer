@@ -132,11 +132,11 @@ fn search(app: &mut AppStates) {
             .map(|x| x.clone())
             .filter(|o| {
                 o.get_document_name()
-                    .to_ascii_lowercase()
-                    .contains(&app.search.to_ascii_lowercase())
+                    .to_lowercase()
+                    .contains(&app.search.to_lowercase())
                     || o.get_name()
-                        .to_ascii_lowercase()
-                        .contains(&app.search.to_ascii_lowercase())
+                        .to_lowercase()
+                        .contains(&app.search.to_lowercase())
             })
             .collect::<Vec<ScpObject>>();
     } else {
@@ -205,14 +205,26 @@ async fn run_app<B: Backend>(
                         }
 
                         KeyCode::Up => {
-                            if !app.is_load {
+                            if !app.is_load && app.window == WindowSelect::Objects {
                                 app.objects_items.previous()
                             }
                         }
 
                         KeyCode::Down => {
-                            if !app.is_load {
+                            if !app.is_load && app.window == WindowSelect::Objects {
                                 app.objects_items.next()
+                            }
+                        }
+
+                        KeyCode::PageDown => {
+                            if !app.is_load && app.window == WindowSelect::Objects {
+                                app.objects_items.select_last();
+                            }
+                        }
+
+                        KeyCode::PageUp => {
+                            if !app.is_load && app.window == WindowSelect::Objects {
+                                app.objects_items.select_first();
                             }
                         }
 
@@ -310,20 +322,47 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut AppStates) {
     let mut block_explorer = Block::default().borders(Borders::ALL).title("Обзор");
 
     let block_info = Block::default().borders(Borders::ALL);
+    let text: Vec<Spans>;
 
-    let text = vec![Spans::from(vec![
-        Span::raw("  "),
-        Span::styled("Esc", Style::default().fg(Color::Green)),
-        Span::raw(" "),
-        Span::styled("Выйти", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("  "),
-        Span::styled("<- ->", Style::default().fg(Color::Green)),
-        Span::raw(" "),
-        Span::styled(
-            "Выбрать окно",
-            Style::default().add_modifier(Modifier::BOLD),
-        ),
-    ])];
+    match app.window {
+        WindowSelect::Explorer => {
+            text = vec![Spans::from(vec![
+                Span::raw("  "),
+                Span::styled("Esc", Style::default().fg(Color::Green)),
+                Span::raw(" "),
+                Span::styled("Выйти", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw("  "),
+                Span::styled("<- ->", Style::default().fg(Color::Green)),
+                Span::raw(" "),
+                Span::styled(
+                    "Выбрать окно",
+                    Style::default().add_modifier(Modifier::BOLD),
+                ),
+            ])];
+        }
+        WindowSelect::Objects => {
+            text = vec![Spans::from(vec![
+                Span::raw("  "),
+                Span::styled("Esc", Style::default().fg(Color::Green)),
+                Span::raw(" "),
+                Span::styled("Выйти", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw("  "),
+                Span::styled("<- ->", Style::default().fg(Color::Green)),
+                Span::raw(" "),
+                Span::styled(
+                    "Выбрать окно",
+                    Style::default().add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" "),
+                Span::styled("PgUp PgDown", Style::default().fg(Color::Green)),
+                Span::raw(" "),
+                Span::styled(
+                    "Выбрать первый или последний объект",
+                    Style::default().add_modifier(Modifier::BOLD),
+                ),
+            ])];
+        }
+    }
 
     let info = Paragraph::new(text)
         .alignment(Alignment::Left)
