@@ -1,5 +1,6 @@
 use core::fmt;
 
+use reqwest::StatusCode;
 use scraper::Selector;
 use serde::{Deserialize, Serialize};
 
@@ -9,8 +10,8 @@ use crate::caching::{cache_objects, decache_objects};
  **One value must be greater than**
  */
 const MAX_SERIES: u8 = 9;
-
 const URL_SERIES: &str = "https://scpfoundation.net/scp-series";
+const URL_SCP_OBJECT_PAGE: &str = "https://scpfoundation.net/scp-";
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ClassificationScp {
@@ -193,4 +194,29 @@ pub async fn parse_series(url: &str) -> Vec<ScpObject> {
     });
 
     objects
+}
+
+pub async fn debug() {
+    let r = parse_object_page("3042").await;
+
+    println!("{:?}", r);
+}
+
+// TODO: Сделать парсинг страницы объекта
+
+pub async fn parse_object_page(id: &str) -> Option<String> {
+    let path = format!("{}{}", URL_SCP_OBJECT_PAGE, id);
+
+    let response = reqwest::get(path).await;
+
+    match response {
+        Ok(r) => {
+            if r.status() == StatusCode::OK {
+                return Some(r.text().await.unwrap().to_string());
+            }
+
+            None
+        }
+        Err(_) => None,
+    }
 }

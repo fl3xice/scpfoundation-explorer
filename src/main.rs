@@ -3,7 +3,7 @@ pub mod parsing;
 pub mod stateful;
 
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    event::{self, DisableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -71,6 +71,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }));
     let objects_loader2 = Arc::clone(&objects_loader);
 
+    // Collect all arguments
+    let args: Vec<String> = env::args().collect();
+
+    // If arguments have string debug
+    if args.contains(&String::from("debug")) {
+        parsing::debug().await;
+        return Ok(());
+    }
+
     tokio::spawn(async move {
         let mut lock = objects_loader.lock().await;
 
@@ -81,18 +90,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         lock.objects_items = StatefulList::with_items(lock.objects.clone().unwrap());
     });
 
-    // Collect all arguments
-    let args: Vec<String> = env::args().collect();
-
-    // If arguments have string debug
-    if args.contains(&String::from("debug")) {
-        return Ok(());
-    }
-
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
