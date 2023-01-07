@@ -1,6 +1,9 @@
 use core::fmt;
 
 use scraper::Selector;
+use serde::{Deserialize, Serialize};
+
+use crate::caching::{cache_objects, decache_objects};
 
 /**
  **One value must be greater than**
@@ -8,9 +11,8 @@ use scraper::Selector;
 const MAX_SERIES: u8 = 9;
 
 const URL_SERIES: &str = "https://scpfoundation.net/scp-series";
-// const URL_SERIES: &str = "/home/flexice/Downloads/objects.html";
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ClassificationScp {
     None,
     Safe,
@@ -35,7 +37,7 @@ impl fmt::Display for ClassificationScp {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScpObject {
     class: ClassificationScp,
     name: String,
@@ -69,12 +71,20 @@ impl ScpObject {
 pub async fn parse_all() -> Vec<ScpObject> {
     let mut objects: Vec<ScpObject> = Vec::new();
 
-    objects.append(&mut parse_series(URL_SERIES).await);
-    for i in 2..MAX_SERIES {
-        objects.append(&mut parse_series(format!("{}-{}", URL_SERIES, i).as_str()).await);
-    }
+    match decache_objects() {
+        Ok(o) => o,
+        Err(_) => {
+            objects.append(&mut parse_series(URL_SERIES).await);
 
-    objects
+            for i in 2..MAX_SERIES {
+                objects.append(&mut parse_series(format!("{}-{}", URL_SERIES, i).as_str()).await);
+            }
+
+            cache_objects(objects.clone());
+
+            objects
+        }
+    }
 }
 
 pub async fn parse_series(url: &str) -> Vec<ScpObject> {
@@ -179,18 +189,6 @@ pub async fn parse_series(url: &str) -> Vec<ScpObject> {
                     id.to_string(),
                 ));
             }
-
-            // match id {
-            //     "5404" => {}
-            //     "5470" => {}
-            //     "4205" => {}
-            //     "4991" => {}
-            //     "3454" => {}
-            //     "2071" => {}
-            //     _ => {
-
-            //     }
-            // }
         });
     });
 

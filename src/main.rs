@@ -375,7 +375,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut AppStates) {
                 .fg(Color::Blue)
                 .add_modifier(Modifier::BOLD),
         )
-        .highlight_symbol("☛");
+        .highlight_symbol("➤");
 
     /* Search Pane */
     f.render_widget(search_widget, chunk_left[0]);
