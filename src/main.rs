@@ -7,7 +7,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use parsing::{parse_all, ScpObject};
+use parsing::{parse_all, parse_object_page, ScpObject};
 use stateful::StatefulList;
 use std::{
     env,
@@ -46,6 +46,8 @@ struct AppStates {
     is_load: bool,
     objects: Option<Vec<ScpObject>>,
     objects_items: StatefulList<ScpObject>,
+    explorer: Option<String>,
+    scroll: (u16, u16),
 }
 
 #[derive(Clone)]
@@ -63,6 +65,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         is_load: true,
         objects: None,
         objects_items: StatefulList::new(),
+        explorer: None,
+        scroll: (0, 0),
     };
 
     let objects_loader = Arc::new(Mutex::new(ObjectsLoading {
@@ -209,11 +213,26 @@ async fn run_app<B: Backend>(
                             if !app.is_load && app.window == WindowSelect::Objects {
                                 app.objects_items.previous()
                             }
+
+                            if !app.is_load && app.window == WindowSelect::Explorer {
+                                let mut scroll = app.scroll;
+                                if scroll.0 != 0 {
+                                    scroll.0 -= 1;
+                                }
+
+                                app.scroll = scroll;
+                            }
                         }
 
                         KeyCode::Down => {
                             if !app.is_load && app.window == WindowSelect::Objects {
                                 app.objects_items.next()
+                            }
+
+                            if !app.is_load && app.window == WindowSelect::Explorer {
+                                let mut scroll = app.scroll;
+                                scroll.0 += 1;
+                                app.scroll = scroll;
                             }
                         }
 
@@ -238,6 +257,26 @@ async fn run_app<B: Backend>(
                         KeyCode::Backspace => {
                             app.mode = Mode::Search;
                             app.search.pop();
+                        }
+
+                        KeyCode::Enter => {
+                            if app.window == WindowSelect::Objects {
+                                app.scroll = (0, 0);
+
+                                let i = app.objects_items.get_selected_id();
+                                let u = app.objects_items.items.get(i);
+                                if u.is_some() {
+                                    let r = parse_object_page(u.unwrap().get_id().as_str()).await;
+
+                                    if r.is_none() {
+                                        app.explorer = Some(String::from("None"));
+                                    } else {
+                                        app.explorer = Some(r.unwrap().source);
+                                    }
+
+                                    app.window = WindowSelect::Explorer;
+                                }
+                            }
                         }
 
                         _ => {}
@@ -434,8 +473,19 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut AppStates) {
 
         f.render_widget(block, chunk_left[1]);
     }
-    // Render block for explore objects
-    f.render_widget(block_explorer, chunks[1]);
+
+    if app.explorer.is_some() {
+        let explorer = Paragraph::new(app.explorer.clone().unwrap())
+            .block(block_explorer)
+            .wrap(Wrap { trim: false })
+            .scroll(app.scroll);
+        // Render block for explore objects
+        f.render_widget(explorer, chunks[1]);
+    } else {
+        // Render block for explore objects
+        f.render_widget(block_explorer, chunks[1]);
+    }
+
     // Render block for see tips for using app
     f.render_widget(info, vertical_chunks[1]);
 }
